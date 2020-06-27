@@ -2,6 +2,7 @@ package com.e.myapplication
 
 import RequestTools.*
 import android.app.ActivityManager
+import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -9,6 +10,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.AsyncTask
 import android.os.Bundle
 import android.os.Environment
+import android.telephony.mbms.DownloadRequest
 import android.util.Log
 import android.util.LruCache
 import android.view.*
@@ -16,6 +18,9 @@ import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.get
 import androidx.core.view.marginLeft
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
+import androidx.viewpager.widget.PagerAdapter
 import com.android.volley.Request
 import com.android.volley.RequestQueue
 import com.android.volley.Response
@@ -23,6 +28,7 @@ import com.android.volley.toolbox.ImageLoader
 import com.android.volley.toolbox.ImageRequest
 import com.android.volley.toolbox.JsonArrayRequest
 import com.android.volley.toolbox.Volley
+import kotlinx.android.synthetic.main.post_activity.*
 import org.json.JSONArray
 import org.json.JSONObject
 import org.json.XML
@@ -30,26 +36,31 @@ import java.io.*
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.util.*
 import kotlin.reflect.typeOf
 
 class MainActivity : AppCompatActivity() {
-
 
     val TAG = "RUNNING"
 
     val gelbooru_api = "https://gelbooru.com/index.php?page=dapi&s=post&q=index&"
     var RequestManager = SingletonManager.getInstance(this)
+    var views = Stack<View>()
+    val temp_path = File(Environment.getDownloadCacheDirectory().toString() + "/temp")
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
-
         super.onCreate(savedInstanceState)
+
+        if (!temp_path.exists()){
+            temp_path.mkdir()
+        }
+
         setContentView(R.layout.activity_main)
 
         //Initialize with all tags
-        pageRequest(gelbooru_api, "", RequestManager, ::setThumb)
-
+        pageRequest(gelbooru_api, "", RequestManager)
     }
-
 
 
     //Old, don't use or FUCK YOU
@@ -108,83 +119,111 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    fun setThumbnails(jsonArray: JSONArray, RequestManager: SingletonManager) {
 
-    public fun setThumb(jsonObject: JSONObject) {
+        var lin_params = RelativeLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            400
+        )
 
-        val thumbnail = jsonObject["thumbnail"] as Bitmap
+        val intent = Intent(this@MainActivity, PostActivity::class.java)
+
+        val rows = findViewById<ViewGroup>(R.id.Rows)
+        var row = LinearLayout(this)
+        row.layoutParams = lin_params
+        row.layoutParams = lin_params
+        row.gravity = Gravity.CENTER_HORIZONTAL
+        rows.addView(LinearLayout(this))
 
         val img_params = LinearLayout.LayoutParams(
             350,
             350
         )
         img_params.gravity = Gravity.CENTER_VERTICAL
-
         img_params.setMargins(10, 0, 10, 0)
 
-        var lin_params = RelativeLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            400
-        )
-        lin_params.addRule(Gravity.CENTER_HORIZONTAL)
+
+        var file_stack = Stack<String>()
+        var file_names = Stack<String>()
+        //Setting thumbnail url
+        //Don't make fun of me for iterating this way. JSONArrays have no iterator
+        for (i in 0 until jsonArray.length()) {
+
+            val json = jsonArray[i] as JSONObject
+
+            file_names.add(json["image"] as String)
+            file_stack.add(json["file_url"] as String)
 
 
-        val imageView = ImageView(this)
-        imageView.layoutParams = img_params
-        imageView.setImageBitmap(thumbnail)
-        imageView.setOnClickListener(object : View.OnClickListener {
-            override fun onClick(v: View?) {
-                val intent = Intent(this@MainActivity, PostActivity::class.java)
-                intent.putExtra("postJSON", jsonObject.toString())
+            var imageView = ImageView(this)
+            var postView = ImageView(this)
+            imageView.layoutParams = img_params
+
+            json.put("thumbnailView", imageView)
+            json.put("PostView", postView)
+
+            val file = json["image"] as String
+            val thumbnail = json["file_url"].toString()
+                .replace("images", "thumbnails")
+                .replace(file, "thumbnail_" + file)
+                .replace("img2", "img1")
+                .replaceAfterLast(".", "jpg")
+            //Append Thumbnail URL to JSON
+            json.put("thumbnail_url", thumbnail)
+
+            //Thumbnail request
+            val imagereq = ImageRequest(
+                json["thumbnail_url"] as String,
+                Response.Listener { result ->
+                    //Set Thumbnails to ImageView
+                    imageView.setImageBitmap(result)
+                },
+                1000,
+                1000,
+                ImageView.ScaleType.CENTER_CROP,
+                Bitmap.Config.RGB_565,
+                Response.ErrorListener { error ->
+                    Log.e(RequestTools.TAG, "ERROR")
+                }
+            )
+
+            val images = row.childCount
+
+            //Make new row
+            if (images == 3){
+                row = LinearLayout(this)
+                row.layoutParams = lin_params
+                row.gravity = Gravity.CENTER_HORIZONTAL
+                rows.addView(row)
             }
-        })
 
-        //Relative Layout that encapsulates all Linear Layouts
-        val rel_layout = findViewById<ViewGroup>(R.id.Relative)
+            row.addView(imageView)
 
-        //Number of Linear Layout Views (rows)
-        val rows = rel_layout.childCount
-        Log.e("Number of ROWS: ", rows.toString())
+            RequestManager.addToRequestQueue(imagereq)
 
-        //Get Last row
-        if (rows == 0) {
-            val new_row = LinearLayout(this)
-            new_row.layoutParams = lin_params
-            new_row.id = R.id.Relative
-            rel_layout.addView(new_row)
-            new_row.addView(imageView)
-            return
         }
 
-        var sub_lay = rel_layout.getChildAt(rows - 1) as ViewGroup
+        intent.putExtra("jsonArray", jsonArray.toString())
+        intent.putExtra("file_urls", file_stack)
+        intent.putExtra("temp_path", temp_path.absolutePath)
+        intent.putExtra("file_names", file_names)
 
-        //Get # of image view in row
-        val img_views = sub_lay.childCount
-        Log.e("Number of IMGVIEWS: ", img_views.toString())
 
-
-        //var lin_params = sub_lay.layoutParams
-
-        if (img_views == 3) {
-            Log.e("ADDING NEW ROW...", "ADDING NEW ROW...")
-            //Create new Empty Row
-            val new_row = LinearLayout(this)
-            println(sub_lay.id)
-            lin_params.addRule(Gravity.CENTER_HORIZONTAL)
-            lin_params.addRule(RelativeLayout.BELOW, sub_lay.id)
-            new_row.layoutParams = lin_params
-            new_row.id = sub_lay.id + 1
-            new_row.gravity = Gravity.CENTER_HORIZONTAL
-            rel_layout.addView(new_row)
-            new_row.addView(imageView)
-            return
-        } else {
-            sub_lay.addView(imageView)
+        for (i in 0 until jsonArray.length()) {
+            var json = jsonArray[i] as JSONObject
+            (json["thumbnailView"] as ImageView).setOnClickListener(object : View.OnClickListener {
+                override fun onClick(v: View?) {
+                    Log.e(TAG, "CLICKED")
+                    intent.putExtra("init_post", i)
+                    startActivity(intent)
+                }
+            })
         }
+
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.options_menu, menu)
-
         var menuItem = menu.findItem(R.id.search_bar)
         var searchView = menuItem.actionView as SearchView
 
@@ -192,10 +231,10 @@ class MainActivity : AppCompatActivity() {
 
         searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean {
-                val rel_layout = findViewById<ViewGroup>(R.id.Relative)
+                val rel_layout = findViewById<ViewGroup>(R.id.Rows)
                 rel_layout.removeAllViews()
 
-                pageRequest(gelbooru_api, query.toString(), RequestManager, ::setThumb)
+                pageRequest(gelbooru_api, query.toString(), RequestManager)
                 return false
             }
 
@@ -207,4 +246,30 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
+
+    //Gets thumbnail urls, sets thumbnails for first MaxImagesPerPage number of images
+    fun pageRequest(api_url: String, tags: String, RequestManager: SingletonManager){
+
+        var reqParam = URLEncoder.encode("tags", "UTF-8") + "=" + URLEncoder.encode(tags, "UTF-8")
+        reqParam += "&" + URLEncoder.encode("json", "UTF-8") + "=" + URLEncoder.encode("1", "UTF-8")
+
+        val mURL = api_url + reqParam
+
+        val jsonObjectRequest = JsonArrayRequest(Request.Method.GET, mURL, null,
+            Response.Listener { response ->
+                if (response.length() > 0){
+                    setThumbnails(response, RequestManager)
+                }
+                else{
+                    Log.e(RequestTools.TAG, "No Posts")
+                }
+            },
+            Response.ErrorListener { error ->
+                Log.e(RequestTools.TAG, "error")
+                Log.e(RequestTools.TAG, error.message)
+                // TODO: Handle error
+            }
+        )
+        RequestManager.addToRequestQueue(jsonObjectRequest)
+    }
 }
