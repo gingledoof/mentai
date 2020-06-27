@@ -19,6 +19,16 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".PostActivity">
+            <intent-filter>
+                <action
+                    android:name="android.intent.action.MAIN">
+
+                </action>
+
+            </intent-filter>
+        </activity>
+
     </application>
 
 </manifest>
