@@ -1,43 +1,40 @@
 package com.e.myapplication
 
-import RequestTools.*
-import android.app.ActivityManager
-import android.app.DownloadManager
+import RequestTools.SingletonManager
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.drawable.GradientDrawable
-import android.os.AsyncTask
+import android.net.Uri
 import android.os.Bundle
-import android.os.Environment
-import android.telephony.mbms.DownloadRequest
 import android.util.Log
-import android.util.LruCache
-import android.view.*
-import android.widget.*
+import android.view.Gravity
+import android.view.Menu
+import android.view.View
+import android.view.ViewGroup
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.RelativeLayout
+import android.widget.SearchView
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.get
-import androidx.core.view.marginLeft
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentActivity
-import androidx.viewpager.widget.PagerAdapter
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.android.volley.Request
-import com.android.volley.RequestQueue
 import com.android.volley.Response
-import com.android.volley.toolbox.ImageLoader
-import com.android.volley.toolbox.ImageRequest
-import com.android.volley.toolbox.JsonArrayRequest
-import com.android.volley.toolbox.Volley
-import kotlinx.android.synthetic.main.post_activity.*
+import com.android.volley.request.ImageRequest
+import com.android.volley.request.JsonArrayRequest
+import com.google.android.exoplayer2.ExoPlayerFactory
+import com.google.android.exoplayer2.Player
+import com.google.android.exoplayer2.source.MediaSource
+import com.google.android.exoplayer2.source.ProgressiveMediaSource
+import com.google.android.exoplayer2.ui.PlayerView
+import com.google.android.exoplayer2.upstream.DataSource
+import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory
 import org.json.JSONArray
 import org.json.JSONObject
-import org.json.XML
-import java.io.*
-import java.net.HttpURLConnection
-import java.net.URL
 import java.net.URLEncoder
 import java.util.*
-import kotlin.reflect.typeOf
 
 class MainActivity : AppCompatActivity() {
 
@@ -45,24 +42,39 @@ class MainActivity : AppCompatActivity() {
 
     val gelbooru_api = "https://gelbooru.com/index.php?page=dapi&s=post&q=index&"
     var RequestManager = SingletonManager.getInstance(this)
-    var views = Stack<View>()
-    val temp_path = File(Environment.getDownloadCacheDirectory().toString() + "/temp")
+    //val temp_path = Environment.getDataDirectory().absolutePath + "/MENTAI/temp"
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        if (!temp_path.exists()){
-            temp_path.mkdir()
-        }
+        //Request Permissions
+        req()
 
         setContentView(R.layout.activity_main)
 
+
         //Initialize with all tags
         pageRequest(gelbooru_api, "", RequestManager)
+
     }
 
+    fun req() {
+        var det = (
+                ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED ||
+                        ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
+                )
 
+        if(det)
+        {
+            //Not granted
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE), 101)
+            while (det) { }
+        }
+
+    }
+
+    /*
     //Old, don't use or FUCK YOU
     private class HTTPSGet : AsyncTask<String, Int, JSONArray>() {
 
@@ -104,20 +116,99 @@ class MainActivity : AppCompatActivity() {
                 println("URL : $url")
                 println("Response Code : $responseCode")
 
-                BufferedReader(InputStreamReader(inputStream)).use {
+                inputStream.use { input ->
+                    this.outputStream.use { fileOut ->
 
-                    var inputLine = it.readLine()
-                    while (inputLine != null) {
-                        response.append(inputLine)
-                        inputLine = it.readLine()
+                        while (true) {
+                            val length = input.read(buffer)
+                            if (length <= 0)
+                                break
+                            fileOut.write(buffer, 0, length)
+                        }
+                        fileOut.flush()
                     }
-                    it.close()
-                    println("Response : $response")
                 }
+
+
             }
-            return xml_formatted_json(response)
         }
-    }
+    }*/
+    /*
+    private class DownloadFileFromURL : AsyncTask<String?, String?, String?>() {
+        /**
+         * Before starting background thread Show Progress Bar Dialog
+         */
+        override fun onPreExecute() {
+            super.onPreExecute()
+        }
+
+        /**
+         * Downloading file in background thread
+         */
+        override fun doInBackground(vararg params: String?): String? {
+            var count: Int
+            try {
+                val url = URL(f_url[0])
+                val connection: URLConnection = url.openConnection()
+                connection.connect()
+
+                // this will be useful so that you can show a tipical 0-100%
+                // progress bar
+                val lenghtOfFile: Int = connection.getContentLength()
+
+                // download the file
+                val input: InputStream = BufferedInputStream(
+                    url.openStream(),
+                    8192
+                )
+
+                // Output stream
+                val output: OutputStream = FileOutputStream(
+                    Environment
+                        .getExternalStorageDirectory().toString()
+                            + "/2011.kml"
+                )
+                val data = ByteArray(1024)
+                var total: Long = 0
+                while (input.read(data).also { count = it } != -1) {
+                    total += count.toLong()
+                    // publishing the progress....
+                    // After this onProgressUpdate will be called
+                    publishProgress("" + (total * 100 / lenghtOfFile).toInt())
+
+                    // writing data to file
+                    output.write(data, 0, count)
+                }
+
+                // flushing output
+                output.flush()
+
+                // closing streams
+                output.close()
+                input.close()
+            } catch (e: Exception) {
+                Log.e("Error: ", e.message)
+            }
+            return null
+        }
+
+        /**
+         * Updating progress bar
+         */
+        override fun onProgressUpdate(vararg values: String?) {
+            // setting progress percentage
+            println(values[0]?.toInt())
+            //pDialog.setProgress(values[0]?.toInt())
+        }
+
+        /**
+         * After completing background task Dismiss the progress dialog
+         */
+        override fun onPostExecute(file_url: String?) {
+            // dismiss the dialog after the file was downloaded
+            //Done
+        }
+    }*/
 
     fun setThumbnails(jsonArray: JSONArray, RequestManager: SingletonManager) {
 
@@ -130,7 +221,6 @@ class MainActivity : AppCompatActivity() {
 
         val rows = findViewById<ViewGroup>(R.id.Rows)
         var row = LinearLayout(this)
-        row.layoutParams = lin_params
         row.layoutParams = lin_params
         row.gravity = Gravity.CENTER_HORIZONTAL
         rows.addView(LinearLayout(this))
@@ -156,11 +246,9 @@ class MainActivity : AppCompatActivity() {
 
 
             var imageView = ImageView(this)
-            var postView = ImageView(this)
             imageView.layoutParams = img_params
 
             json.put("thumbnailView", imageView)
-            json.put("PostView", postView)
 
             val file = json["image"] as String
             val thumbnail = json["file_url"].toString()
@@ -174,6 +262,8 @@ class MainActivity : AppCompatActivity() {
             //Thumbnail request
             val imagereq = ImageRequest(
                 json["thumbnail_url"] as String,
+                null,
+                contentResolver,
                 Response.Listener { result ->
                     //Set Thumbnails to ImageView
                     imageView.setImageBitmap(result)
@@ -205,7 +295,7 @@ class MainActivity : AppCompatActivity() {
 
         intent.putExtra("jsonArray", jsonArray.toString())
         intent.putExtra("file_urls", file_stack)
-        intent.putExtra("temp_path", temp_path.absolutePath)
+        //intent.putExtra("temp_path", temp_path.absolutePath)
         intent.putExtra("file_names", file_names)
 
 
@@ -271,5 +361,9 @@ class MainActivity : AppCompatActivity() {
             }
         )
         RequestManager.addToRequestQueue(jsonObjectRequest)
+    }
+
+    fun getContext() : Context{
+        return applicationContext
     }
 }
