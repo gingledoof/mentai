@@ -19,7 +19,7 @@ class Pager : PagerAdapter {
     }
 
     fun getView(position: Int): View? {
-        return posts[position].view
+        return posts[position].EncapView
     }
 
     override fun isViewFromObject(view: View, `object`: Any): Boolean {
@@ -34,23 +34,24 @@ class Pager : PagerAdapter {
         val post = posts[position]
         if (post.init_post and !post.loaded){
             post.load()
-            container.addView(post.view)
+            container.addView(post.EncapView)
         }
-        if (!post.loaded){
+        else if (!post.loaded){
             post.load()
-            container.addView(post.view)
+            container.addView(post.EncapView)
         }
-        return post.view
+        return post.EncapView
     }
 
     override fun destroyItem(container: ViewGroup, position: Int, `object`: Any) {
+
         return
         //super.destroyItem(container, position, `object`)
     }
 
     override fun getItemPosition(`object`: Any): Int {
         for (index in 0 until count) {
-            if (`object` as View === posts[index].view) {
+            if (`object` as View === posts[index].EncapView) {
                 return index
             }
         }
