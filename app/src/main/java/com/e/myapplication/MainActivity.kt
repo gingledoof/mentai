@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -22,6 +23,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.android.volley.Request
 import com.android.volley.Response
+import com.android.volley.VolleyLog
 import com.android.volley.request.ImageRequest
 import com.android.volley.request.JsonArrayRequest
 import com.google.android.exoplayer2.ExoPlayerFactory
@@ -48,6 +50,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        VolleyLog.DEBUG = false
         //Request Permissions
         req()
 
@@ -74,142 +77,8 @@ class MainActivity : AppCompatActivity() {
 
     }
 
-    /*
-    //Old, don't use or FUCK YOU
-    private class HTTPSGet : AsyncTask<String, Int, JSONArray>() {
 
-        protected fun onProgressUpdate(vararg progress: Int) {
-            println(progress)
-        }
-
-        protected fun xml_formatted_json(xml: StringBuffer): JSONArray{
-            val json = XML.toJSONObject(xml.toString())
-            var json2 = json["posts"]
-            json2 = JSONObject(json2.toString())
-            val json3 = json2["post"]
-            var string = json3.toString().replace("[", "").replace("]", "")
-            var strings = string.replace("},", "}},")
-            var stringi = strings.split("},")
-            var json_arr = JSONArray()
-            for (string in stringi) {
-                json_arr.put(JSONObject(string.toString()))
-            }
-            return json_arr
-        }
-
-        override fun onPostExecute(result: JSONArray) {
-            println("COMPLETED")
-        }
-
-        override fun doInBackground(vararg tags: String): JSONArray {
-            val response = StringBuffer()
-
-            var reqParam = URLEncoder.encode("tags", "UTF-8") + "=" + URLEncoder.encode(tags[0], "UTF-8")
-            reqParam += "&" + URLEncoder.encode("json", "UTF-8") + "=" + URLEncoder.encode("0", "UTF-8")
-
-            val mURL = URL("https://gelbooru.com/index.php?page=dapi&s=post&q=index&" + reqParam)
-
-            with(mURL.openConnection() as HttpURLConnection) {
-                // optional default is GET
-                requestMethod = "GET"
-
-                println("URL : $url")
-                println("Response Code : $responseCode")
-
-                inputStream.use { input ->
-                    this.outputStream.use { fileOut ->
-
-                        while (true) {
-                            val length = input.read(buffer)
-                            if (length <= 0)
-                                break
-                            fileOut.write(buffer, 0, length)
-                        }
-                        fileOut.flush()
-                    }
-                }
-
-
-            }
-        }
-    }*/
-    /*
-    private class DownloadFileFromURL : AsyncTask<String?, String?, String?>() {
-        /**
-         * Before starting background thread Show Progress Bar Dialog
-         */
-        override fun onPreExecute() {
-            super.onPreExecute()
-        }
-
-        /**
-         * Downloading file in background thread
-         */
-        override fun doInBackground(vararg params: String?): String? {
-            var count: Int
-            try {
-                val url = URL(f_url[0])
-                val connection: URLConnection = url.openConnection()
-                connection.connect()
-
-                // this will be useful so that you can show a tipical 0-100%
-                // progress bar
-                val lenghtOfFile: Int = connection.getContentLength()
-
-                // download the file
-                val input: InputStream = BufferedInputStream(
-                    url.openStream(),
-                    8192
-                )
-
-                // Output stream
-                val output: OutputStream = FileOutputStream(
-                    Environment
-                        .getExternalStorageDirectory().toString()
-                            + "/2011.kml"
-                )
-                val data = ByteArray(1024)
-                var total: Long = 0
-                while (input.read(data).also { count = it } != -1) {
-                    total += count.toLong()
-                    // publishing the progress....
-                    // After this onProgressUpdate will be called
-                    publishProgress("" + (total * 100 / lenghtOfFile).toInt())
-
-                    // writing data to file
-                    output.write(data, 0, count)
-                }
-
-                // flushing output
-                output.flush()
-
-                // closing streams
-                output.close()
-                input.close()
-            } catch (e: Exception) {
-                Log.e("Error: ", e.message)
-            }
-            return null
-        }
-
-        /**
-         * Updating progress bar
-         */
-        override fun onProgressUpdate(vararg values: String?) {
-            // setting progress percentage
-            println(values[0]?.toInt())
-            //pDialog.setProgress(values[0]?.toInt())
-        }
-
-        /**
-         * After completing background task Dismiss the progress dialog
-         */
-        override fun onPostExecute(file_url: String?) {
-            // dismiss the dialog after the file was downloaded
-            //Done
-        }
-    }*/
-
+    //Needs to create custom thumbnail object instead of JSON
     fun setThumbnails(jsonArray: JSONArray, RequestManager: SingletonManager) {
 
         var lin_params = RelativeLayout.LayoutParams(
@@ -301,6 +170,7 @@ class MainActivity : AppCompatActivity() {
 
         for (i in 0 until jsonArray.length()) {
             var json = jsonArray[i] as JSONObject
+            //Needs to be changed to lambda
             (json["thumbnailView"] as ImageView).setOnClickListener(object : View.OnClickListener {
                 override fun onClick(v: View?) {
                     Log.e(TAG, "CLICKED")
@@ -308,6 +178,12 @@ class MainActivity : AppCompatActivity() {
                     startActivity(intent)
                 }
             })
+
+            (json["thumbnailView"] as ImageView).setOnLongClickListener { v: View -> Unit
+                v.setPadding(1,1,1,1)
+                v.setBackgroundColor(Color.CYAN)
+                true
+            }
         }
 
     }
@@ -363,7 +239,8 @@ class MainActivity : AppCompatActivity() {
         RequestManager.addToRequestQueue(jsonObjectRequest)
     }
 
-    fun getContext() : Context{
-        return applicationContext
+    override fun onDestroy() {
+        cacheDir.delete()
+        super.onDestroy()
     }
 }
