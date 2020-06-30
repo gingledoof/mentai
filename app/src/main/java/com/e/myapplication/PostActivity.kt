@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.graphics.ColorFilter
 import android.graphics.PorterDuff
 import android.net.Uri
+import android.os.AsyncTask
 import android.os.Build
 import android.os.Bundle
 import android.util.AttributeSet
@@ -33,11 +34,8 @@ import com.google.android.exoplayer2.source.ProgressiveMediaSource
 import com.google.android.exoplayer2.ui.PlayerView
 import com.google.android.exoplayer2.upstream.DataSource
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory
-import kotlinx.android.synthetic.main.post_activity.*
 import org.json.JSONArray
 import org.json.JSONObject
-import pl.droidsonroids.gif.GifDrawable
-import pl.droidsonroids.gif.GifImageView
 import java.io.File
 import java.util.*
 
@@ -59,6 +57,8 @@ class PostActivity : AppCompatActivity() {
         var jsonArray = JSONArray(intent.getStringExtra("jsonArray"))
         val init_post = intent.getIntExtra("init_post", 0)
         val temp_path = applicationContext.cacheDir.absolutePath
+
+        //CacheManager(File(temp_path), 100000000).execute()
 
         for (i in 0 until jsonArray.length()){
 
@@ -86,10 +86,17 @@ class PostActivity : AppCompatActivity() {
 
             if (type == PostFileHandler.IMAGE){
                 post.view = ImageView(this)
+                post.EncapView.addView(post.view)
+                post.view.layoutParams = RelativeLayout.LayoutParams(
+                    RelativeLayout.LayoutParams.MATCH_PARENT,
+                    RelativeLayout.LayoutParams.MATCH_PARENT)
                 //Decode and set
-                post.request = DownloadReq(post.file_url, temp_path +"/" + post.image,
+                val path = temp_path + "/" + post.image
+                post.local_file = path
+                post.request = DownloadReq(post.file_url, path,
                     Response.Listener { result ->
                         //Returns path
+                        File(result).setLastModified(System.currentTimeMillis())
                         post.progressBar.visibility = View.GONE
                         Log.e("DownloadFile", result)
                         var bitmap = BitmapFactory.decodeFile(result)
@@ -104,15 +111,22 @@ class PostActivity : AppCompatActivity() {
 
             else if(type == PostFileHandler.GIF) {
                 post.view = ImageView(this)
-                post.request = DownloadReq(post.file_url, temp_path + "/" + post.image,
+                post.EncapView.addView(post.view)
+                post.view.layoutParams = RelativeLayout.LayoutParams(
+                    RelativeLayout.LayoutParams.MATCH_PARENT,
+                    RelativeLayout.LayoutParams.MATCH_PARENT)
+                val path = temp_path + "/" + post.image
+                post.local_file = path
+                post.request = DownloadReq(post.file_url, path,
                     Response.Listener { result ->
+                        post.local_file = result
+                        File(result).setLastModified(System.currentTimeMillis())
                         Log.e("Request", "File is GIF")
                         post.progressBar.visibility = View.GONE
                         Glide.with(applicationContext)
                             .asGif()
                             .load(result)
                             .into(post.view as ImageView)
-
                     },
                 post.progressBar
                 )
@@ -120,10 +134,7 @@ class PostActivity : AppCompatActivity() {
 
             else { Log.e("Assigning View Type", "ERROR") }
 
-            post.view.layoutParams = RelativeLayout.LayoutParams(
-                RelativeLayout.LayoutParams.MATCH_PARENT,
-                RelativeLayout.LayoutParams.MATCH_PARENT)
-
+            post.EncapView.addView(progressBar)
             posts.add(post)
         }
 
@@ -135,7 +146,7 @@ class PostActivity : AppCompatActivity() {
 
         // Instantiate a ViewPager and a PagerAdapter.
         mPager = findViewById(R.id.pager)
-
+        mPager.offscreenPageLimit = 0
         // The pager adapter, which provides the pages to the view pager widget.
         mPager.adapter = pagerAdapter
         mPager.currentItem = init_post
@@ -158,8 +169,55 @@ class PostActivity : AppCompatActivity() {
         mPager.removeAllViews()
         super.onDestroy()
     }
+
 }
 
+class CacheManager : AsyncTask<Int, Int, Int?>{
+    val cacheDir:File
+    val maxSize:Long
+
+    constructor(cacheDir: File, maxSize: Long){
+        this.cacheDir = cacheDir
+        this.maxSize = maxSize
+    }
+    override fun doInBackground(vararg params: Int?): Int? {
+        while(true){
+            var size = getDirSize(cacheDir)
+            if (size >= maxSize){
+                //Get oldest files
+                var files = cacheDir.listFiles()
+                sortByDate(files)
+
+                var i = 0
+                while(size >= maxSize){
+                    files[i].delete()
+                    i+=1
+                    size = getDirSize(cacheDir)
+                }
+                Log.e("CacheManager", "Deleted " + i.toString() + " Files")
+            }
+        }
+    }
+
+    fun getDirSize(dir: File): Long{
+        var size:Long = 0
+        for (file in cacheDir.listFiles()){
+            size += file.length()
+        }
+        return size
+    }
+
+    fun sortByDate(files: Array<File>) {
+        for (i in 1 until files.size){
+            if (files[files.size-1-i].lastModified() > files[files.size-i].lastModified()){
+                val temp = files[files.size-1-i]
+                files[files.size-1-i] = files[files.size-i]
+                files[files.size-i] = temp
+            }
+        }
+    }
+
+}
 
 fun DownloadReq( url: String, path: String, listener: Response.Listener<String>, progressBar: ProgressBar) : DownloadRequest{
     var downloadRequest = DownloadRequest(url, path,
@@ -190,7 +248,7 @@ class Post(jsonObject: JSONObject) {
     val file_url: String
     val created_at: String
     lateinit var view: View
-    lateinit var local_file: File
+    var local_file: String = ""
     lateinit var request: DownloadRequest
     var init_post = false
     var loaded = false
@@ -232,17 +290,36 @@ class Post(jsonObject: JSONObject) {
     }
 
     fun load(){
-        EncapView.addView(view)
-        EncapView.addView(progressBar)
-        progressBar.bringToFront()
+        progressBar.visibility = View.GONE
 
         if (PostFileHandler.handler(image) == PostFileHandler.VIDEO){
             player.playWhenReady = false
             player.seekTo(0, 0)
             player.prepare(mediaSource, false, false)
+        }
+        else if (PostFileHandler.handler(image) == PostFileHandler.IMAGE){
+            if (File(local_file).exists()){
+                (view as ImageView).setImageBitmap(BitmapFactory.decodeFile(local_file))
+            }
+            else {
+                RequestMangager.addToRequestQueue(request)
+                progressBar.visibility = View.VISIBLE
+                progressBar.bringToFront()
+            }
             return
         }
-        RequestMangager.addToRequestQueue(request)
+        else if (PostFileHandler.handler(image) == PostFileHandler.GIF){
+            if (File(local_file).exists()){
+                Glide.with(context).load(local_file).into(view as ImageView)
+            }
+            else {
+                RequestMangager.addToRequestQueue(request)
+                progressBar.visibility = View.VISIBLE
+                progressBar.bringToFront()
+            }
+            return
+        }
+
     }
 
 }
