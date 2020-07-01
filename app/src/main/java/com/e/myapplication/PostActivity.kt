@@ -7,9 +7,7 @@ import android.graphics.Color
 import android.graphics.ColorFilter
 import android.graphics.PorterDuff
 import android.net.Uri
-import android.os.AsyncTask
-import android.os.Build
-import android.os.Bundle
+import android.os.*
 import android.util.AttributeSet
 import android.util.Log
 import android.view.LayoutInflater
@@ -37,7 +35,9 @@ import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.Serializable
 import java.util.*
+import kotlin.collections.ArrayList
 
 
 class PostActivity : AppCompatActivity() {
@@ -54,21 +54,21 @@ class PostActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         downloadManager = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        var jsonArray = JSONArray(intent.getStringExtra("jsonArray"))
+        var args = intent.getBundleExtra("BUNDLE")
+        var posts = args.getSerializable("posts") as ArrayList<Post>
         val init_post = intent.getIntExtra("init_post", 0)
         val temp_path = applicationContext.cacheDir.absolutePath
 
         //CacheManager(File(temp_path), 100000000).execute()
 
-        for (i in 0 until jsonArray.length()){
-
+        for (i in 0 until posts.size){
+            var post = posts[i]
             var relativeLayout = RelativeLayout(this)
             relativeLayout.layoutParams = RelativeLayout.LayoutParams(
                 RelativeLayout.LayoutParams.MATCH_PARENT,
                 RelativeLayout.LayoutParams.MATCH_PARENT
             )
 
-            var post = Post(jsonArray[i] as JSONObject)
             post.context = this
             post.RequestMangager = RequestManager
 
@@ -230,98 +230,6 @@ fun DownloadReq( url: String, path: String, listener: Response.Listener<String>,
         progressBar.setProgress(progress)
     }
     return downloadRequest
-}
-
-class Post(jsonObject: JSONObject) {
-    val source: String
-    val directory: String
-    val hash: String
-    val height: Int
-    val id: Int
-    val image: String
-    val change: Int
-    val owner: String
-    val rating: String
-    val score: Int
-    val tags: List<String>
-    val width: Int
-    val file_url: String
-    val created_at: String
-    lateinit var view: View
-    var local_file: String = ""
-    lateinit var request: DownloadRequest
-    var init_post = false
-    var loaded = false
-    lateinit var thumbnail_url: String
-    lateinit var RequestMangager: SingletonManager
-    lateinit var listener: Response.Listener<Any>
-    lateinit var player: SimpleExoPlayer
-    lateinit var mediaSource: MediaSource
-    lateinit var context: Context
-    lateinit var EncapView: ViewGroup
-    lateinit var progressBar: ProgressBar
-
-    init {
-        this.source = jsonObject["source"] as String
-        this.directory = jsonObject["directory"] as String
-        this.hash = jsonObject["hash"] as String
-        this.height = jsonObject["height"] as Int
-        this.id = jsonObject["id"] as Int
-        this.image = jsonObject["image"] as String
-        this.change =  jsonObject["change"] as Int
-        this.owner = jsonObject["owner"] as String
-        this.rating = jsonObject["rating"] as String
-        this.score = jsonObject["score"] as Int
-        this.tags = (jsonObject["tags"] as String).split(" ")
-        this.width = jsonObject["width"] as Int
-        this.file_url = jsonObject["file_url"] as String
-        this.created_at = jsonObject["created_at"] as String
-        getThumbnailUrl(jsonObject)
-    }
-
-    fun getThumbnailUrl(json: JSONObject){
-        val file = json["image"] as String
-        val thumbnail = json["file_url"].toString()
-            .replace("images", "thumbnails")
-            .replace(file, "thumbnail_" + file)
-            .replace("img2", "img1")
-            .replaceAfterLast(".", "jpg")
-        this.thumbnail_url = thumbnail
-    }
-
-    fun load(){
-        progressBar.visibility = View.GONE
-
-        if (PostFileHandler.handler(image) == PostFileHandler.VIDEO){
-            player.playWhenReady = false
-            player.seekTo(0, 0)
-            player.prepare(mediaSource, false, false)
-        }
-        else if (PostFileHandler.handler(image) == PostFileHandler.IMAGE){
-            if (File(local_file).exists()){
-                (view as ImageView).setImageBitmap(BitmapFactory.decodeFile(local_file))
-            }
-            else {
-                RequestMangager.addToRequestQueue(request)
-                progressBar.visibility = View.VISIBLE
-                progressBar.bringToFront()
-            }
-            return
-        }
-        else if (PostFileHandler.handler(image) == PostFileHandler.GIF){
-            if (File(local_file).exists()){
-                Glide.with(context).load(local_file).into(view as ImageView)
-            }
-            else {
-                RequestMangager.addToRequestQueue(request)
-                progressBar.visibility = View.VISIBLE
-                progressBar.bringToFront()
-            }
-            return
-        }
-
-    }
-
 }
 
 public object PostFileHandler {
