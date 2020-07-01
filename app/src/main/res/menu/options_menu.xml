@@ -2,14 +2,6 @@
 <menu xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:android="http://schemas.android.com/apk/res/android">
 
-
-<!--
-    <item
-        android:id="@+id/app_bar_search"
-        android:icon="@drawable/ic_search_black_24dp"
-        android:title="Search..."
-        app:actionViewClass="android.widget.SearchView" />
--->
     <item
         android:id="@+id/search_bar"
         app:showAsAction="always"
@@ -17,4 +9,20 @@
         android:title="Search Tags">
 
     </item>
+
+    <item
+        android:id="@+id/menu"
+        app:showAsAction="always"
+        android:title="TODO">
+
+        <menu>
+            <item
+                android:iconTint="@color/colorPrimaryDark"
+                android:id="@+id/favorites"
+                android:title="Favorites" />
+        </menu>
+
+
+    </item>
+
 </menu>
