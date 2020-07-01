@@ -12,8 +12,8 @@ import com.bumptech.glide.Glide
 
 class Pager : PagerAdapter {
 
-    lateinit var context: Context
-    lateinit var posts:List<Post>
+    var context: Context
+    var posts:List<Post>
 
     constructor(posts: List<Post>, context: Context){
         this.context = context
