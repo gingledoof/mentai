@@ -7,13 +7,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Color
-import android.net.Uri
 import android.os.Bundle
 import android.util.Log
-import android.view.Gravity
-import android.view.Menu
-import android.view.View
-import android.view.ViewGroup
+import android.view.*
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.RelativeLayout
@@ -26,15 +22,12 @@ import com.android.volley.Response
 import com.android.volley.VolleyLog
 import com.android.volley.request.ImageRequest
 import com.android.volley.request.JsonArrayRequest
-import com.google.android.exoplayer2.ExoPlayerFactory
-import com.google.android.exoplayer2.Player
-import com.google.android.exoplayer2.source.MediaSource
-import com.google.android.exoplayer2.source.ProgressiveMediaSource
-import com.google.android.exoplayer2.ui.PlayerView
-import com.google.android.exoplayer2.upstream.DataSource
-import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
+import java.io.FileWriter
+import java.io.ObjectOutputStream
+import java.io.Serializable
 import java.net.URLEncoder
 import java.util.*
 
@@ -46,13 +39,15 @@ class MainActivity : AppCompatActivity() {
     var RequestManager = SingletonManager.getInstance(this)
     //val temp_path = Environment.getDataDirectory().absolutePath + "/MENTAI/temp"
 
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         VolleyLog.DEBUG = false
         //Request Permissions
         req()
+
+        val fav_dir = File(filesDir.absolutePath, "fav.txt")
+
+        if (!fav_dir.exists()) {fav_dir.createNewFile()}
 
         setContentView(R.layout.activity_main)
 
@@ -81,12 +76,15 @@ class MainActivity : AppCompatActivity() {
     //Needs to create custom thumbnail object instead of JSON
     fun setThumbnails(jsonArray: JSONArray, RequestManager: SingletonManager) {
 
+        val fav_dir = File(filesDir.absolutePath, "fav.txt")
+
         var lin_params = RelativeLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             400
         )
 
         val intent = Intent(this@MainActivity, PostActivity::class.java)
+        val fav_intent = Intent(this@MainActivity, Favorites::class.java)
 
         val rows = findViewById<ViewGroup>(R.id.Rows)
         var row = LinearLayout(this)
@@ -102,35 +100,24 @@ class MainActivity : AppCompatActivity() {
         img_params.setMargins(10, 0, 10, 0)
 
 
-        var file_stack = Stack<String>()
-        var file_names = Stack<String>()
+        var posts = Stack<Post>()
+        var imageViews = Stack<ImageView>()
         //Setting thumbnail url
         //Don't make fun of me for iterating this way. JSONArrays have no iterator
         for (i in 0 until jsonArray.length()) {
 
             val json = jsonArray[i] as JSONObject
-
-            file_names.add(json["image"] as String)
-            file_stack.add(json["file_url"] as String)
-
+            var post = Post(json)
+            json.put("thumnail_url", post.thumbnail_url)
 
             var imageView = ImageView(this)
             imageView.layoutParams = img_params
 
-            json.put("thumbnailView", imageView)
-
-            val file = json["image"] as String
-            val thumbnail = json["file_url"].toString()
-                .replace("images", "thumbnails")
-                .replace(file, "thumbnail_" + file)
-                .replace("img2", "img1")
-                .replaceAfterLast(".", "jpg")
-            //Append Thumbnail URL to JSON
-            json.put("thumbnail_url", thumbnail)
+            imageViews.add(imageView)
 
             //Thumbnail request
             val imagereq = ImageRequest(
-                json["thumbnail_url"] as String,
+                post.thumbnail_url,
                 null,
                 contentResolver,
                 Response.Listener { result ->
@@ -142,7 +129,7 @@ class MainActivity : AppCompatActivity() {
                 ImageView.ScaleType.CENTER_CROP,
                 Bitmap.Config.RGB_565,
                 Response.ErrorListener { error ->
-                    Log.e(RequestTools.TAG, "ERROR")
+                    Log.e(com.e.myapplication.TAG, "ERROR")
                 }
             )
 
@@ -157,21 +144,20 @@ class MainActivity : AppCompatActivity() {
             }
 
             row.addView(imageView)
+            posts.add(post)
 
             RequestManager.addToRequestQueue(imagereq)
 
         }
 
-        intent.putExtra("jsonArray", jsonArray.toString())
-        intent.putExtra("file_urls", file_stack)
-        //intent.putExtra("temp_path", temp_path.absolutePath)
-        intent.putExtra("file_names", file_names)
+        var args = Bundle()
+        args.putSerializable("posts", posts as Serializable)
+        intent.putExtra("BUNDLE", args)
 
 
-        for (i in 0 until jsonArray.length()) {
-            var json = jsonArray[i] as JSONObject
+        for (i in 0 until imageViews.size) {
             //Needs to be changed to lambda
-            (json["thumbnailView"] as ImageView).setOnClickListener(object : View.OnClickListener {
+            imageViews[i].setOnClickListener(object : View.OnClickListener {
                 override fun onClick(v: View?) {
                     Log.e(TAG, "CLICKED")
                     intent.putExtra("init_post", i)
@@ -179,9 +165,11 @@ class MainActivity : AppCompatActivity() {
                 }
             })
 
-            (json["thumbnailView"] as ImageView).setOnLongClickListener { v: View -> Unit
+            imageViews[i].setOnLongClickListener { v: View -> Unit
                 v.setPadding(1,1,1,1)
                 v.setBackgroundColor(Color.CYAN)
+                Log.e("wfdwf", "WRITTEN")
+                fav_dir.appendText(posts[i].id.toString() + "\n")
                 true
             }
         }
@@ -191,9 +179,16 @@ class MainActivity : AppCompatActivity() {
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.options_menu, menu)
         var menuItem = menu.findItem(R.id.search_bar)
+        var nav_bar = menu.findItem(R.id.favorites)
         var searchView = menuItem.actionView as SearchView
 
         searchView.queryHint = "Search for tags"
+
+        nav_bar.setOnMenuItemClickListener { item: MenuItem -> Unit
+            val fav_intent = Intent(this@MainActivity, Favorites::class.java)
+            startActivity(fav_intent)
+            false
+        }
 
         searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean {
@@ -227,12 +222,12 @@ class MainActivity : AppCompatActivity() {
                     setThumbnails(response, RequestManager)
                 }
                 else{
-                    Log.e(RequestTools.TAG, "No Posts")
+                    Log.e(com.e.myapplication.TAG, "No Posts")
                 }
             },
             Response.ErrorListener { error ->
-                Log.e(RequestTools.TAG, "error")
-                Log.e(RequestTools.TAG, error.message)
+                Log.e(com.e.myapplication.TAG, "error")
+                Log.e(com.e.myapplication.TAG, error.message)
                 // TODO: Handle error
             }
         )
@@ -243,4 +238,5 @@ class MainActivity : AppCompatActivity() {
         cacheDir.delete()
         super.onDestroy()
     }
+
 }
