@@ -162,7 +162,7 @@ class PostActivity : AppCompatActivity() {
         post.view.layoutParams = RelativeLayout.LayoutParams(
             RelativeLayout.LayoutParams.MATCH_PARENT,
             RelativeLayout.LayoutParams.MATCH_PARENT)
-        
+
         post.EncapView.addView(post.view)
         post.player = ExoPlayerFactory.newSimpleInstance(this)
         (post.view as PlayerView).player = post.player
