@@ -3,13 +3,18 @@ package com.e.myapplication
 import RequestTools.SingletonManager
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.util.Log
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.ProgressBar
 import com.android.volley.Response
 import com.android.volley.request.DownloadRequest
+import com.android.volley.request.ImageRequest
 import com.bumptech.glide.Glide
 import com.google.android.exoplayer2.SimpleExoPlayer
 import com.google.android.exoplayer2.source.MediaSource
@@ -44,13 +49,14 @@ class Post(jsonObject: JSONObject) : Serializable {
     var init_post = false
     var loaded = false
     lateinit var thumbnail_url: String
-    lateinit var RequestMangager: SingletonManager
     lateinit var listener: Response.Listener<Any>
     lateinit var player: SimpleExoPlayer
     lateinit var mediaSource: MediaSource
-    lateinit var context: Context
     lateinit var EncapView: ViewGroup
     lateinit var progressBar: ProgressBar
+    lateinit var RequestMangager: SingletonManager
+    lateinit var context: Context
+    var favorite = false
 
     init {
         this.source = jsonObject["source"] as String
@@ -79,6 +85,7 @@ class Post(jsonObject: JSONObject) : Serializable {
             .replaceAfterLast(".", "jpg")
         this.thumbnail_url = thumbnail
     }
+
 
     fun load(){
         progressBar.visibility = View.GONE
