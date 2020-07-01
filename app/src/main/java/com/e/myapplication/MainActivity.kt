@@ -2,6 +2,7 @@ package com.e.myapplication
 
 import RequestTools.SingletonManager
 import android.Manifest
+import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -37,6 +38,7 @@ class MainActivity : AppCompatActivity() {
 
     val gelbooru_api = "https://gelbooru.com/index.php?page=dapi&s=post&q=index&"
     var RequestManager = SingletonManager.getInstance(this)
+    lateinit var ids:MutableList<String>
     //val temp_path = Environment.getDataDirectory().absolutePath + "/MENTAI/temp"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,6 +50,11 @@ class MainActivity : AppCompatActivity() {
         val fav_dir = File(filesDir.absolutePath, "fav.txt")
 
         if (!fav_dir.exists()) {fav_dir.createNewFile()}
+
+        ids = File(filesDir.absolutePath, "fav.txt").readLines().toMutableList()
+        for (id in ids){
+            Log.e("ID", id)
+        }
 
         setContentView(R.layout.activity_main)
 
@@ -106,32 +113,20 @@ class MainActivity : AppCompatActivity() {
         //Don't make fun of me for iterating this way. JSONArrays have no iterator
         for (i in 0 until jsonArray.length()) {
 
-            val json = jsonArray[i] as JSONObject
-            var post = Post(json)
-            json.put("thumnail_url", post.thumbnail_url)
-
             var imageView = ImageView(this)
             imageView.layoutParams = img_params
 
-            imageViews.add(imageView)
+            val json = jsonArray[i] as JSONObject
+            var post = Post(json)
+            thumbReq(post, contentResolver, imageView, RequestManager)
+            json.put("thumnail_url", post.thumbnail_url)
 
-            //Thumbnail request
-            val imagereq = ImageRequest(
-                post.thumbnail_url,
-                null,
-                contentResolver,
-                Response.Listener { result ->
-                    //Set Thumbnails to ImageView
-                    imageView.setImageBitmap(result)
-                },
-                1000,
-                1000,
-                ImageView.ScaleType.CENTER_CROP,
-                Bitmap.Config.RGB_565,
-                Response.ErrorListener { error ->
-                    Log.e(com.e.myapplication.TAG, "ERROR")
-                }
-            )
+            if(ids.contains(post.id.toString())){
+                imageView.setBackgroundResource(R.drawable.image_border)
+                post.favorite = true
+            }
+
+            imageViews.add(imageView)
 
             val images = row.childCount
 
@@ -145,8 +140,6 @@ class MainActivity : AppCompatActivity() {
 
             row.addView(imageView)
             posts.add(post)
-
-            RequestManager.addToRequestQueue(imagereq)
 
         }
 
@@ -166,8 +159,13 @@ class MainActivity : AppCompatActivity() {
             })
 
             imageViews[i].setOnLongClickListener { v: View -> Unit
-                v.setPadding(1,1,1,1)
-                v.setBackgroundColor(Color.CYAN)
+
+                if(posts[i].favorite){
+                    //Remove border
+                    v.setBackgroundResource(0)
+                }
+
+                v.setBackgroundResource(R.drawable.image_border)
                 Log.e("wfdwf", "WRITTEN")
                 fav_dir.appendText(posts[i].id.toString() + "\n")
                 true
@@ -239,4 +237,24 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
+    fun thumbReq(post: Post, contentResolver: ContentResolver, imageView: ImageView, RequestManager: SingletonManager){
+        val imagereq = ImageRequest(
+            post.thumbnail_url,
+            null,
+            contentResolver,
+            Response.Listener { result ->
+                //Set Thumbnails to ImageView
+                imageView.setImageBitmap(result)
+            },
+            1000,
+            1000,
+            ImageView.ScaleType.CENTER_CROP,
+            Bitmap.Config.RGB_565,
+            Response.ErrorListener { error ->
+                Log.e("IMAGEREQ", "ERROR")
+            }
+        )
+
+        RequestManager.addToRequestQueue(imagereq)
+    }
 }
