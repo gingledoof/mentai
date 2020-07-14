@@ -1,6 +1,8 @@
 package com.e.myapplication
 
 import RequestTools.SingletonManager
+import android.app.Activity
+import android.app.Application
 import android.content.ContentResolver
 import android.content.Intent
 import android.graphics.Bitmap
@@ -37,50 +39,31 @@ class Favorites : AppCompatActivity(){
     var RequestManager = SingletonManager.getInstance(this)
     val img_params = LinearLayout.LayoutParams(350, 350)
     lateinit var ids:MutableList<String>
-
+    lateinit var fav:File
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         img_params.gravity = Gravity.CENTER_VERTICAL
         img_params.setMargins(10, 0, 10, 0)
 
+        fav = File(intent.getStringExtra("fav"))
+
         Log.e("Fav", "STARTED")
         VolleyLog.DEBUG = false
-
-        setContentView(R.layout.favorites)
 
         ids = File(filesDir.absolutePath, "fav.txt").readLines().toMutableList()
         for (id in ids){
             Log.e("ID", id)
         }
-        favRequest(gelbooru_api, ids, RequestManager)
 
+        setContentView(R.layout.favorites)
 
-
-        //Initialize with all tags
-
+        favRequest(gelbooru_api, RequestManager)
     }
 
-    fun favRequest(api_url: String, ids: List<String>, RequestManager: SingletonManager) {
+    fun favRequest(api_url: String, RequestManager: SingletonManager) {
 
         var requestsCounter = AtomicInteger(ids.size)
-
-        val intent = Intent(this@Favorites, PostActivity::class.java)
-
-        var lin_params = RelativeLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            400
-        )
-
-        val rows = findViewById<ViewGroup>(R.id.fav_Rows)
-        var row = LinearLayout(this)
-        row.layoutParams = lin_params
-        row.gravity = Gravity.CENTER_HORIZONTAL
-        rows.addView(LinearLayout(this))
-
-
-        var posts = Stack<Post>()
-        var imageViews = Stack<ImageView>()
 
         var jsonArray = JSONArray()
         RequestManager.requestQueue.addRequestFinishedListener<JsonArrayRequest> {request ->
@@ -127,8 +110,6 @@ class Favorites : AppCompatActivity(){
 
     fun setThumbnails(jsonArray: JSONArray, RequestManager: SingletonManager) {
 
-        val fav_dir = File(filesDir.absolutePath, "fav.txt")
-
         var lin_params = RelativeLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             400
@@ -165,6 +146,7 @@ class Favorites : AppCompatActivity(){
             json.put("thumnail_url", post.thumbnail_url)
 
             imageViews.add(imageView)
+            posts.add(post)
 
             val images = row.childCount
 
@@ -177,8 +159,6 @@ class Favorites : AppCompatActivity(){
             }
 
             row.addView(imageView)
-            posts.add(post)
-
         }
 
         var args = Bundle()
@@ -197,9 +177,9 @@ class Favorites : AppCompatActivity(){
             })
 
             imageViews[i].setOnLongClickListener { v: View -> Unit
-                v.setPadding(1,1,1,1)
-                v.setBackgroundColor(Color.RED)
                 ids.remove(posts[i].id.toString())
+                posts[i].favorite = false
+                imageViews[i].visibility = View.GONE
                 Log.e("wfdwf", "WRITTEN")
 
                 true
@@ -208,15 +188,22 @@ class Favorites : AppCompatActivity(){
 
     }
 
-    override fun onDestroy() {
-        var file = File(filesDir.absolutePath, "fav.txt")
-        file.delete()
-        file.createNewFile()
+    fun rewrite(){
+        fav.delete()
+        fav.createNewFile()
         for (id in ids){
-            file.appendText(id + "\n")
+            fav.appendText(id + "\n")
         }
+        Log.e("REWRITE","Rewritten")
+    }
 
-        super.onDestroy()
+    override fun onBackPressed() {
+        var i = Intent()
+        //var i = Intent(this@Favorites, MainActivity::class.java)
+        i.putExtra("ids", arrayOf(ids))
+        setResult(Activity.RESULT_OK, i)
+        Log.e("BackPressed", Activity.RESULT_OK.toString())
+        super.onBackPressed()
     }
 
     fun thumbReq(post: Post, contentResolver: ContentResolver, imageView: ImageView, RequestManager: SingletonManager){
