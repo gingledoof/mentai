@@ -224,55 +224,8 @@ class CacheManager : AsyncTask<Int, Int, Int?>{
 
 }
 
-fun DownloadReq( url: String, path: String, listener: Response.Listener<String>, progressBar: ProgressBar) : DownloadRequest{
-    var downloadRequest = DownloadRequest(url, path,
-        listener,
-        Response.ErrorListener { error ->
-            Log.e("DownloadFile", "ERROR")
-        })
-    downloadRequest.setOnProgressListener { transferredBytes, totalSize ->
-        val progress = ((transferredBytes * 100)/totalSize).toInt()
-        progressBar.setProgress(progress)
-    }
-    return downloadRequest
-}
-
-public object PostFileHandler {
-    public val IMAGE = 0
-    public val VIDEO = 1
-    public val GIF = 2
-
-    private val imageFileExtensions = arrayOf(
-        "jpg",
-        "png",
-        "jpeg"
-    )
-
-    private val videoFileExtensions = arrayOf(
-        "mp4",
-        "webm"
-    )
 
 
-    fun handler(filename: String): Int {
-        for (extension in imageFileExtensions) {
-            if (filename.toLowerCase().endsWith(extension)) {
-                return IMAGE
-            }
-        }
-        for (extension in videoFileExtensions) {
-            if (filename.toLowerCase().endsWith(extension)) {
-                return VIDEO
-            }
-        }
-        if(filename.toLowerCase().endsWith("gif")){
-            return GIF
-        }
-
-        return -1
-    }
-
-}
 
 /*
 class FileGet : AsyncTask<String, Int, String> {
