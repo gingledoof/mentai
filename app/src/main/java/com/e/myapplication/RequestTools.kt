@@ -57,6 +57,7 @@ class Post(jsonObject: JSONObject) : Serializable {
     lateinit var RequestMangager: SingletonManager
     lateinit var context: Context
     var favorite = false
+    lateinit var thumbnailView: ImageView
 
     init {
         this.source = jsonObject["source"] as String
