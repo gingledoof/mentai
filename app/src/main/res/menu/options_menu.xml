@@ -20,7 +20,8 @@
 
         <menu>
             <item
-                android:iconTint="@color/colorPrimaryDark"
+                android:enabled="true"
+                android:iconTint="@color/colorPrimary"
                 android:id="@+id/favorites"
                 android:title="Favorites" />
         </menu>

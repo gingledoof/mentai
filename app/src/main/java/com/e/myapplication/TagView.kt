@@ -33,7 +33,7 @@ class TagView(context: Context, drawable: Drawable?) : RelativeLayout(context) {
         iconView.layoutParams = lp
 
         this.addView(iconView)
-        this.setPadding(2,2,2,2)
+        this.setPadding(20,0,20,0)
         this.layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT)
 
         tags = Stack<String>()

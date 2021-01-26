@@ -404,7 +404,7 @@ class MainActivity : AppCompatActivity() {
     //Gets thumbnail urls, sets thumbnails for first MaxImagesPerPage number of images
     fun pageRequest(api_url: String, tags: String, RequestManager: SingletonManager, page: Int){
 
-        var reqParam = URLEncoder.encode("tags", "UTF-8") + "=" + URLEncoder.encode(tags, "UTF-8")
+        var reqParam = URLEncoder.encode("tags", "UTF-8") + "=" + URLEncoder.encode("$tags $SFW", "UTF-8")
         reqParam += "&" + URLEncoder.encode("json", "UTF-8") + "=" + URLEncoder.encode("1", "UTF-8")
         reqParam += "&" + URLEncoder.encode("pid", "UTF-8") + "=" + URLEncoder.encode(page.toString(), "UTF-8")
 
@@ -418,12 +418,22 @@ class MainActivity : AppCompatActivity() {
                 }
                 else{
                     Log.e(com.e.myapplication.TAG, "No Posts")
+                    Toast.makeText(this, "No posts for entered tags...", Toast.LENGTH_SHORT)
                 }
             },
             { error ->
-                Log.e(com.e.myapplication.TAG, "Page req error")
-                Log.e(com.e.myapplication.TAG, error.message)
-                // TODO: Handle error
+                val message = error.message
+                if (message != null) {
+
+                    Log.e(com.e.myapplication.TAG, "Page req error")
+                    Log.e(com.e.myapplication.TAG, message)
+
+                    if (message.contains("End of input at character 0")) {
+                        Log.e(com.e.myapplication.TAG, "No Posts")
+                        Toast.makeText(this, "No posts for entered tags...", Toast.LENGTH_SHORT).show()
+                    }
+                    // TODO: Handle error
+                }
             }
         )
         RequestManager.addToRequestQueue(jsonObjectRequest)
