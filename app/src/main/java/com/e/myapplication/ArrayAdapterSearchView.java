@@ -16,6 +16,7 @@ import java.util.Stack;
 public class ArrayAdapterSearchView extends SearchView {
 
     private SearchView.SearchAutoComplete mSearchAutoComplete;
+    OnQueryTextListener Glistener;
 
     public ArrayAdapterSearchView(Context context) {
         super(context);
@@ -47,9 +48,19 @@ public class ArrayAdapterSearchView extends SearchView {
         mSearchAutoComplete.setAdapter(adapter);
     }
 
-
     public void setText(String text) {
         mSearchAutoComplete.setText(text);
     }
 
+    @Override public void setOnQueryTextListener(OnQueryTextListener listener) {
+        super.setOnQueryTextListener(listener);
+        this.Glistener = listener;
+        //mSearchAutoComplete = this.findViewById(android.support.v7.appcompat.R.id.search_src_text);
+        mSearchAutoComplete.setOnEditorActionListener((textView, i, keyEvent) -> {
+            if (listener != null) {
+                listener.onQueryTextSubmit(getQuery().toString());
+            }
+            return true;
+        });
+    }
 }

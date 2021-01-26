@@ -45,7 +45,8 @@ class MainActivity : AppCompatActivity() {
     val gelbooru_api = "https://gelbooru.com/index.php?page=dapi&s=post&q=index&"
     val gelbooru_tag_api = "https://gelbooru.com/index.php?page=dapi&s=tag&q=index&"
 
-    val test_tags = arrayOf("shimakaze_(kantai_collection)", "fate_(series)", "trap", "minecraft")
+    val test_tags = arrayOf("fate_(series)")
+    val SFW = "rating:safe -loli -large_breasts -panties -girlfriend_(kari) -cleavage -ass -midriff -swimsuit -nude -spread_legs -bare_legs -flat_chest -bunny_ears"
 
     var RequestManager = SingletonManager.getInstance(this)
     lateinit var searchView:ArrayAdapterSearchView
@@ -75,7 +76,7 @@ class MainActivity : AppCompatActivity() {
         toolbar.inflateMenu(R.menu.options_menu)
 
         //Initialize with all safe tags
-        pageRequest(gelbooru_api, "rating:safe", RequestManager, 0)
+        pageRequest(gelbooru_api, SFW, RequestManager, 0)
     }
 
     fun tagRequest(api_url: String, RequestManager: SingletonManager, pattern: String, page: Int){
@@ -94,11 +95,11 @@ class MainActivity : AppCompatActivity() {
                             i -> (response.get(i) as JSONObject).get("tag") as String
                     })
 
-                    /*
+
                     val adapter: ArrayAdapter<String> = ArrayAdapter<String>(this,
                         android.R.layout.simple_dropdown_item_1line, tags)
-                    */
-                    val adapter = DelimiterAdapter(this, android.R.layout.simple_dropdown_item_1line, tags)
+
+                    //val adapter = DelimiterAdapter(this, android.R.layout.simple_dropdown_item_1line, tags)
                     searchView.setAdapter(adapter)
                 }
                 else{
@@ -302,7 +303,9 @@ class MainActivity : AppCompatActivity() {
 
         val tagView = findViewById<LinearLayout>(R.id.tag_scroll)
 
-        val adapter = DelimiterAdapter(this, android.R.layout.simple_dropdown_item_1line, test_tags)
+        //val adapter = DelimiterAdapter(this, android.R.layout.simple_dropdown_item_1line, test_tags)
+        val adapter: ArrayAdapter<String> = ArrayAdapter<String>(this,
+            android.R.layout.simple_dropdown_item_1line, test_tags)
 
         searchView.setAdapter(adapter)
 
@@ -354,14 +357,16 @@ class MainActivity : AppCompatActivity() {
         searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean {
 
-                val rel_layout = findViewById<ViewGroup>(R.id.Rows)
-                rel_layout.removeAllViews()
-
                 var query = ""
+
                 for (textView in tagView.children){
                     val text = (textView as TagView).getText()
                     query = "$query $text"
                 }
+                Log.e("QUERY", query)
+
+                val rel_layout = findViewById<ViewGroup>(R.id.Rows)
+                rel_layout.removeAllViews()
                 pageRequest(gelbooru_api, query, RequestManager, 0)
                 return true
             }
@@ -406,7 +411,7 @@ class MainActivity : AppCompatActivity() {
         val mURL = api_url + reqParam
 
         val jsonObjectRequest = JsonArrayRequest(Request.Method.GET, mURL, null,
-            Response.Listener { response ->
+            { response ->
                 if (response.length() > 0){
                     Log.e("pageRequest", "Got Posts!")
                     setThumbnails(response, RequestManager, tags, page)
@@ -415,8 +420,8 @@ class MainActivity : AppCompatActivity() {
                     Log.e(com.e.myapplication.TAG, "No Posts")
                 }
             },
-            Response.ErrorListener { error ->
-                Log.e(com.e.myapplication.TAG, "error")
+            { error ->
+                Log.e(com.e.myapplication.TAG, "Page req error")
                 Log.e(com.e.myapplication.TAG, error.message)
                 // TODO: Handle error
             }
