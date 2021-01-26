@@ -3,72 +3,58 @@ package com.e.myapplication
 import RequestTools.SingletonManager
 import android.Manifest
 import android.app.Activity
-import android.app.DownloadManager
 import android.content.ContentResolver
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.database.Cursor
+import android.database.MatrixCursor
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.net.Uri
 import android.os.Bundle
+import android.provider.BaseColumns
 import android.util.Log
 import android.view.*
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.viewpager.widget.ViewPager
 import com.android.volley.Request
 import com.android.volley.Response
 import com.android.volley.VolleyLog
-import com.android.volley.request.DownloadRequest
 import com.android.volley.request.ImageRequest
 import com.android.volley.request.JsonArrayRequest
-import com.bumptech.glide.Glide
-import com.google.android.exoplayer2.ExoPlayerFactory
-import com.google.android.exoplayer2.source.MediaSource
-import com.google.android.exoplayer2.source.ProgressiveMediaSource
-import com.google.android.exoplayer2.ui.PlayerView
-import com.google.android.exoplayer2.upstream.DataSource
-import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.Serializable
 import java.net.URLEncoder
 import java.util.*
+import androidx.appcompat.widget.SearchView
+import androidx.core.view.children
+
+import androidx.core.view.get
+import androidx.core.view.size
+import androidx.core.widget.addTextChangedListener
+import com.diegodobelo.expandingview.ExpandingList
+import org.w3c.dom.Text
+
 
 class MainActivity : AppCompatActivity() {
 
     val TAG = "RUNNING"
 
     val gelbooru_api = "https://gelbooru.com/index.php?page=dapi&s=post&q=index&"
+    val gelbooru_tag_api = "https://gelbooru.com/index.php?page=dapi&s=tag&q=index&"
+
+    val test_tags = arrayOf("shimakaze_(kantai_collection)", "fate_(series)", "trap", "minecraft")
+
     var RequestManager = SingletonManager.getInstance(this)
+    lateinit var searchView:ArrayAdapterSearchView
     lateinit var ids:MutableList<String>
     var paused = false
     lateinit var fav_dir:File
-    private lateinit var mPager: ViewPager
-    lateinit var downloadManager: DownloadManager
-
-    val lin_params = RelativeLayout.LayoutParams(
-        LinearLayout.LayoutParams.MATCH_PARENT,
-        400
-    )
-
-    val img_params = LinearLayout.LayoutParams(
-        350,
-        350
-    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        img_params.gravity = Gravity.CENTER_VERTICAL
-        img_params.setMargins(10, 0, 10, 0)
-
-        downloadManager = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-
         VolleyLog.DEBUG = false
         //Request Permissions
         req()
@@ -84,10 +70,48 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(R.layout.activity_main)
 
+        val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)
+        setSupportActionBar(toolbar)
+        toolbar.inflateMenu(R.menu.options_menu)
 
-        //Initialize with all tags
-        pageRequest(gelbooru_api, "", RequestManager)
+        //Initialize with all safe tags
+        pageRequest(gelbooru_api, "rating:safe", RequestManager, 0)
+    }
 
+    fun tagRequest(api_url: String, RequestManager: SingletonManager, pattern: String, page: Int){
+        var reqParam = URLEncoder.encode("json", "UTF-8") + "=" + URLEncoder.encode("1", "UTF-8")
+        reqParam += "&" + URLEncoder.encode("name_pattern", "UTF-8") + "=" + URLEncoder.encode("$pattern%", "UTF-8")
+        reqParam += "&" + URLEncoder.encode("order", "UTF-8") + "=" + URLEncoder.encode("DESC", "UTF-8")
+        reqParam += "&" + URLEncoder.encode("orderby", "UTF-8") + "=" + URLEncoder.encode("count", "UTF-8")
+
+        val mURL = api_url + reqParam
+
+        val jsonObjectRequest = JsonArrayRequest(Request.Method.GET, mURL, null,
+            { response ->
+                if (response.length() > 0){
+
+                    var tags = Array(response.length(), {
+                            i -> (response.get(i) as JSONObject).get("tag") as String
+                    })
+
+                    /*
+                    val adapter: ArrayAdapter<String> = ArrayAdapter<String>(this,
+                        android.R.layout.simple_dropdown_item_1line, tags)
+                    */
+                    val adapter = DelimiterAdapter(this, android.R.layout.simple_dropdown_item_1line, tags)
+                    searchView.setAdapter(adapter)
+                }
+                else{
+                    Log.e(com.e.myapplication.TAG, "No Tags")
+                }
+            },
+            { error ->
+                Log.e(com.e.myapplication.TAG, "error")
+                Log.e(com.e.myapplication.TAG, error.message)
+                // TODO: Handle error
+            }
+        )
+        RequestManager.addToRequestQueue(jsonObjectRequest)
     }
 
     //Requests permissions
@@ -96,6 +120,7 @@ class MainActivity : AppCompatActivity() {
                 ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED ||
                         ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
                 )
+
         if(det)
         {
             //Not granted
@@ -105,15 +130,30 @@ class MainActivity : AppCompatActivity() {
 
     }
 
-
     //Needs to create custom thumbnail object instead of JSON
-    fun setThumbnails(jsonArray: JSONArray, RequestManager: SingletonManager) {
+    fun setThumbnails(jsonArray: JSONArray, RequestManager: SingletonManager, tags: String, page: Int) {
+
+        var lin_params = RelativeLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            400
+        )
+
+        val intent = Intent(this@MainActivity, PostActivity::class.java)
+        val fav_intent = Intent(this@MainActivity, Favorites::class.java)
 
         val rows = findViewById<ViewGroup>(R.id.Rows)
+
         var row = LinearLayout(this)
         row.layoutParams = lin_params
         row.gravity = Gravity.CENTER_HORIZONTAL
         rows.addView(LinearLayout(this))
+
+        val img_params = LinearLayout.LayoutParams(
+            350,
+            350
+        )
+        img_params.gravity = Gravity.CENTER_VERTICAL
+        img_params.setMargins(10, 0, 10, 0)
 
 
         var posts = Stack<Post>()
@@ -127,16 +167,15 @@ class MainActivity : AppCompatActivity() {
 
             val json = jsonArray[i] as JSONObject
             var post = Post(json)
-            post.thumbnailView = imageView
             thumbReq(post, contentResolver, imageView, RequestManager)
-
+            json.put("thumnail_url", post.thumbnail_url)
 
             if(ids.contains(post.id.toString())){
                 imageView.setBackgroundResource(R.drawable.image_border)
                 post.favorite = true
             }
 
-            imageViews.add(post.thumbnailView)
+            imageViews.add(imageView)
 
             val images = row.childCount
 
@@ -153,15 +192,22 @@ class MainActivity : AppCompatActivity() {
 
         }
 
+        var args = Bundle()
+        args.putSerializable("posts", posts as Serializable)
+        intent.putExtra("BUNDLE", args)
 
-        for (i in 0 until posts.size) {
+
+        for (i in 0 until imageViews.size) {
             //Needs to be changed to lambda
-            posts[i].thumbnailView.setOnClickListener { v ->
-                Log.e(TAG, "CLICKED")
-                init(posts, i)
-            }
+            imageViews[i].setOnClickListener(object : View.OnClickListener {
+                override fun onClick(v: View?) {
+                    Log.e(TAG, "CLICKED")
+                    intent.putExtra("init_post", i)
+                    startActivity(intent)
+                }
+            })
 
-            posts[i].thumbnailView.setOnLongClickListener { v: View -> Unit
+            imageViews[i].setOnLongClickListener { v: View -> Unit
 
                 if(posts[i].favorite){
                     //Remove favorite
@@ -180,15 +226,121 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+
+        val button_row = LinearLayout(this)
+        button_row.layoutParams = lin_params
+        button_row.gravity = Gravity.CENTER_HORIZONTAL
+        rows.addView(button_row)
+
+        if (page != 0) {
+            //add previous button
+            val prev = Button(this)
+            prev.text = "Previous"
+
+            prev.setOnClickListener {
+                rows.removeAllViews()
+                pageRequest(gelbooru_api, tags, RequestManager, (page-1) ) }
+
+            button_row.addView(prev)
+        }
+
+        if (imageViews.size == 100){
+            //Adding next button
+            val next = Button(this)
+            next.text = "Next"
+            next.setOnClickListener {
+                rows.removeAllViews()
+                pageRequest(gelbooru_api, tags, RequestManager, (page+1) ) }
+
+            button_row.addView(next)
+
+        }
+
+
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode === 1) {
+            if (resultCode === Activity.RESULT_OK) {
+                ids = (data!!.getStringArrayExtra("ids")).toMutableList()
+                for (id in ids){ Log.e("IDS", id)}
+                rewrite()
+            }
+        }
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.options_menu, menu)
-        var menuItem = menu.findItem(R.id.search_bar)
+        var scroll_bar = menu.findItem(R.id.test)
+        var menuItem = menu.findItem(R.id.me)
         var nav_bar = menu.findItem(R.id.favorites)
-        var searchView = menuItem.actionView as SearchView
+        //var searchView = menuItem.actionView as ArrayAdapterSearchView
 
-        searchView.queryHint = "Search for tags"
+        var s = scroll_bar.actionView as HorizontalScrollView
+
+
+        val mst_lay = RelativeLayout(this)
+        mst_lay.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        mst_lay.gravity = Gravity.CENTER
+
+        val Lin = LinearLayout(this)
+        Lin.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        Lin.gravity = Gravity.CENTER
+
+        val se_Lin = LinearLayout(this)
+        se_Lin.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+
+        mst_lay.addView(se_Lin)
+        mst_lay.addView(Lin)
+
+        searchView = ArrayAdapterSearchView(this)
+
+        Lin.addView(searchView)
+
+        s.addView(mst_lay)
+
+        val tagView = findViewById<LinearLayout>(R.id.tag_scroll)
+
+        val adapter = DelimiterAdapter(this, android.R.layout.simple_dropdown_item_1line, test_tags)
+
+        searchView.setAdapter(adapter)
+
+        searchView.setOnItemClickListener { parent, view, position, id ->
+            //Maybe Create custom view adder thing
+            val textView = TagView(this, getDrawable(R.drawable.mentai_ic))
+            val text = (view as TextView).text.toString()
+            textView.setText(text)
+
+            val img_params = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.MATCH_PARENT
+            )
+            img_params.setMargins(10, 0, 10, 0)
+
+            textView.layoutParams = img_params
+
+            textView.setOnClickListener { v: View? -> tagView.removeView(v) }
+            tagView.addView(textView)
+
+            searchView.setText("")
+
+            //var t = ImageView(this)
+            //t.setImageDrawable(getDrawable(R.drawable.mentai_ic))
+
+        }
+
+        /*
+        searchView.addTextChangedListener {
+            val text = searchView.text.toString()
+
+            if (text != null) {
+                tagRequest(gelbooru_tag_api, RequestManager, text, 0)
+            }
+        }
+
+        searchView.setTokenizer(SpaceTokenizer())
+         */
 
         nav_bar.setOnMenuItemClickListener { item: MenuItem -> Unit
             rewrite()
@@ -201,26 +353,29 @@ class MainActivity : AppCompatActivity() {
 
         searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean {
+
                 val rel_layout = findViewById<ViewGroup>(R.id.Rows)
                 rel_layout.removeAllViews()
 
-                pageRequest(gelbooru_api, query.toString(), RequestManager)
-                return false
+                var query = ""
+                for (textView in tagView.children){
+                    val text = (textView as TagView).getText()
+                    query = "$query $text"
+                }
+                pageRequest(gelbooru_api, query, RequestManager, 0)
+                return true
             }
 
             override fun onQueryTextChange(newText: String?): Boolean {
-                return false
+
+                if (newText != null) {
+                    tagRequest(gelbooru_tag_api, RequestManager, newText, 0)
+                }
+                return true
             }
         })
 
         return true
-    }
-
-    fun updateFavs(){
-        ids = fav_dir.readLines().toMutableList()
-        for (id in ids){
-            Log.e("ID", id)
-        }
     }
 
     fun rewrite(){
@@ -231,12 +386,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-
     override fun onResume() {
         Log.e("RESUMED", "HERE")
         super.onResume()
     }
-
 
     override fun onPause() {
         paused = true
@@ -244,17 +397,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     //Gets thumbnail urls, sets thumbnails for first MaxImagesPerPage number of images
-    fun pageRequest(api_url: String, tags: String, RequestManager: SingletonManager){
+    fun pageRequest(api_url: String, tags: String, RequestManager: SingletonManager, page: Int){
 
         var reqParam = URLEncoder.encode("tags", "UTF-8") + "=" + URLEncoder.encode(tags, "UTF-8")
         reqParam += "&" + URLEncoder.encode("json", "UTF-8") + "=" + URLEncoder.encode("1", "UTF-8")
+        reqParam += "&" + URLEncoder.encode("pid", "UTF-8") + "=" + URLEncoder.encode(page.toString(), "UTF-8")
 
         val mURL = api_url + reqParam
 
         val jsonObjectRequest = JsonArrayRequest(Request.Method.GET, mURL, null,
             Response.Listener { response ->
                 if (response.length() > 0){
-                    setThumbnails(response, RequestManager)
+                    Log.e("pageRequest", "Got Posts!")
+                    setThumbnails(response, RequestManager, tags, page)
                 }
                 else{
                     Log.e(com.e.myapplication.TAG, "No Posts")
@@ -294,175 +449,4 @@ class MainActivity : AppCompatActivity() {
 
         RequestManager.addToRequestQueue(imagereq)
     }
-
-    override fun onBackPressed() {
-        setContentView(R.layout.activity_main)
-        super.onBackPressed()
-    }
-
-    fun createProgressBar(context: Context): ProgressBar{
-        var progressBar = ProgressBar(this, null, 0, R.style.Widget_AppCompat_ProgressBar_Horizontal)
-        progressBar.max = 100
-        progressBar.layoutParams = RelativeLayout.LayoutParams(
-            RelativeLayout.LayoutParams.MATCH_PARENT,
-            RelativeLayout.LayoutParams.MATCH_PARENT)
-        progressBar.visibility = View.VISIBLE
-        return progressBar
-    }
-
-    fun init(posts : Stack<Post>, init_post: Int){
-        val temp_path = cacheDir.absolutePath
-
-        for (i in 0 until posts.size){
-            var post = posts[i]
-            var relativeLayout = RelativeLayout(this)
-            relativeLayout.layoutParams = RelativeLayout.LayoutParams(
-                RelativeLayout.LayoutParams.MATCH_PARENT,
-                RelativeLayout.LayoutParams.MATCH_PARENT
-            )
-
-            post.context = this
-            post.RequestMangager = RequestManager
-
-            post.EncapView = relativeLayout
-
-            post.progressBar = createProgressBar(this)
-
-            val type = PostFileHandler.handler(post.image)
-
-            if (type == PostFileHandler.IMAGE){
-                post.view = ImageView(this)
-                post.EncapView.addView(post.view)
-                post.view.layoutParams = RelativeLayout.LayoutParams(
-                    RelativeLayout.LayoutParams.MATCH_PARENT,
-                    RelativeLayout.LayoutParams.MATCH_PARENT)
-                //Decode and set
-                val path = temp_path + "/" + post.image
-                post.local_file = path
-                post.request = DownloadReq(post.file_url, path,
-                    Response.Listener { result ->
-                        //Returns path
-                        File(result).setLastModified(System.currentTimeMillis())
-                        post.progressBar.visibility = View.GONE
-                        Log.e("DownloadFile", result)
-                        var bitmap = BitmapFactory.decodeFile(result)
-                        Log.e("REQUEST", bitmap.byteCount.toString())
-                        (post.view as ImageView).setImageBitmap(bitmap)
-                    },
-                    post.progressBar
-                )
-            }
-
-            else if(type == PostFileHandler.VIDEO){ initVideoStream(post) }
-
-            else if(type == PostFileHandler.GIF) {
-                post.view = ImageView(this)
-                post.EncapView.addView(post.view)
-                post.view.layoutParams = RelativeLayout.LayoutParams(
-                    RelativeLayout.LayoutParams.MATCH_PARENT,
-                    RelativeLayout.LayoutParams.MATCH_PARENT)
-                val path = temp_path + "/" + post.image
-                post.local_file = path
-                post.request = DownloadReq(post.file_url, path,
-                    Response.Listener { result ->
-                        post.local_file = result
-                        File(result).setLastModified(System.currentTimeMillis())
-                        Log.e("Request", "File is GIF")
-                        post.progressBar.visibility = View.GONE
-                        Glide.with(applicationContext)
-                            .asGif()
-                            .load(result)
-                            .into(post.view as ImageView)
-                    },
-                    post.progressBar
-                )
-            }
-
-            else { Log.e("Assigning View Type", "ERROR") }
-
-            post.EncapView.addView(post.progressBar)
-            posts.add(post)
-        }
-
-        posts[init_post].init_post = true
-
-        var pagerAdapter = Pager(posts, this)
-
-        setContentView(R.layout.post_activity)
-
-        // Instantiate a ViewPager and a PagerAdapter.
-        mPager = findViewById(R.id.pager)
-        mPager.offscreenPageLimit = 0
-        // The pager adapter, which provides the pages to the view pager widget.
-        mPager.adapter = pagerAdapter
-        mPager.currentItem = init_post
-    }
-
-    private fun buildMediaSource(uri: Uri): MediaSource {
-        val dataSourceFactory: DataSource.Factory = DefaultDataSourceFactory(this, "exoplayer-codelab")
-        return ProgressiveMediaSource.Factory(dataSourceFactory).createMediaSource(uri)
-    }
-
-    fun initVideoStream(post: Post){
-        post.view = PlayerView(this)
-        post.view.layoutParams = RelativeLayout.LayoutParams(
-            RelativeLayout.LayoutParams.MATCH_PARENT,
-            RelativeLayout.LayoutParams.MATCH_PARENT)
-
-        post.EncapView.addView(post.view)
-        post.player = ExoPlayerFactory.newSimpleInstance(this)
-        (post.view as PlayerView).player = post.player
-        val uri = Uri.parse(post.file_url)
-        post.mediaSource = buildMediaSource(uri)
-    }
-}
-
-fun DownloadReq( url: String, path: String, listener: Response.Listener<String>, progressBar: ProgressBar) : DownloadRequest {
-    var downloadRequest = DownloadRequest(url, path,
-        listener,
-        Response.ErrorListener { error ->
-            Log.e("DownloadFile", "ERROR")
-        })
-    downloadRequest.setOnProgressListener { transferredBytes, totalSize ->
-        val progress = ((transferredBytes * 100)/totalSize).toInt()
-        progressBar.setProgress(progress)
-    }
-    return downloadRequest
-}
-
-public object PostFileHandler {
-    public val IMAGE = 0
-    public val VIDEO = 1
-    public val GIF = 2
-
-    private val imageFileExtensions = arrayOf(
-        "jpg",
-        "png",
-        "jpeg"
-    )
-
-    private val videoFileExtensions = arrayOf(
-        "mp4",
-        "webm"
-    )
-
-
-    fun handler(filename: String): Int {
-        for (extension in imageFileExtensions) {
-            if (filename.toLowerCase().endsWith(extension)) {
-                return IMAGE
-            }
-        }
-        for (extension in videoFileExtensions) {
-            if (filename.toLowerCase().endsWith(extension)) {
-                return VIDEO
-            }
-        }
-        if(filename.toLowerCase().endsWith("gif")){
-            return GIF
-        }
-
-        return -1
-    }
-
 }

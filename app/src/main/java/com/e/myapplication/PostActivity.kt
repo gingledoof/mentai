@@ -225,82 +225,17 @@ class CacheManager : AsyncTask<Int, Int, Int?>{
 }
 
 
-
-
-/*
-class FileGet : AsyncTask<String, Int, String> {
-    var downloadManager:DownloadManager
-    var context: Context
-    var post: Post
-    val temp_path = Environment.getDataDirectory().absolutePath + "/MENTAI/temp"
-
-    constructor(context: Context , downloadManager: DownloadManager, post: Post){
-        this.downloadManager = downloadManager
-        this.context = context
-        this.post = post
+fun DownloadReq( url: String, path: String, listener: Response.Listener<String>, progressBar: ProgressBar) : DownloadRequest{
+    var downloadRequest = DownloadRequest(url, path,
+        listener,
+        Response.ErrorListener { error ->
+            Log.e("DownloadFile", "ERROR")
+        })
+    downloadRequest.setOnProgressListener { transferredBytes, totalSize ->
+        val progress = ((transferredBytes * 100)/totalSize).toInt()
+        progressBar.setProgress(progress)
     }
-
-    var progress = 0
-
-    override fun onProgressUpdate(vararg values: Int?) {
-        super.onProgressUpdate(*values)
-    }
-
-    override fun onPostExecute(result: String) {
-        post.loaded = true
-        Log.e("DOWNLOADING", "SUCCESS!")
-        Log.e("DONE", result)
-        var bit = BitmapFactory.decodeStream(context.openFileInput("files/h.jpg"))
-    }
-
-
-    override fun doInBackground(vararg params: String?): String? {
-
-        val req = DownloadManager.Request(Uri.parse(post.file_url))
-            //.setDestinationInExternalFilesDir(context, "cache", post.image)
-            .setDestinationInExternalFilesDir(context , "", "h.jpg")
-            .setAllowedOverMetered(true)
-
-        val downloadID = downloadManager.enqueue(req)
-        var path=""
-        var finishDownload = false
-        while (!finishDownload) {
-            val cursor: Cursor =
-                downloadManager.query(DownloadManager.Query().setFilterById(downloadID))
-            if (cursor.moveToFirst()) {
-                val status: Int =
-                    cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_STATUS))
-                when (status) {
-                    DownloadManager.STATUS_FAILED -> {
-                        finishDownload = true
-                    }
-                    DownloadManager.STATUS_PAUSED -> {
-                    }
-                    DownloadManager.STATUS_PENDING -> {
-                    }
-                    DownloadManager.STATUS_RUNNING -> {
-                        val total: Long =
-                            cursor.getLong(cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
-                        if (total >= 0) {
-                            val downloaded: Long = cursor.getLong(cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
-                            progress = (downloaded * 100L / total).toInt()
-                            publishProgress(progress)
-                        }
-                    }
-                    DownloadManager.STATUS_SUCCESSFUL -> {
-                        progress = 100
-                        publishProgress(100)
-                        finishDownload = true
-                        Log.e("DOWNLOAD", "Getting path...")
-                        val path = File(DIRECTORY_DOWNLOADS, post.image).absolutePath
-                        Log.e("Download: ", "COMPLETE: " + path)
-                        post.loaded = true
-                    }
-                }
-            }
-        }
-        return path
-    }
+    return downloadRequest
 }
-*/
+
 

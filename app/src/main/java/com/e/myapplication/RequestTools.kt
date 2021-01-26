@@ -123,3 +123,39 @@ class Post(jsonObject: JSONObject) : Serializable {
 
 }
 
+public object PostFileHandler {
+    public val IMAGE = 0
+    public val VIDEO = 1
+    public val GIF = 2
+
+    private val imageFileExtensions = arrayOf(
+        "jpg",
+        "png",
+        "jpeg"
+    )
+
+    private val videoFileExtensions = arrayOf(
+        "mp4",
+        "webm"
+    )
+
+
+    fun handler(filename: String): Int {
+        for (extension in imageFileExtensions) {
+            if (filename.toLowerCase().endsWith(extension)) {
+                return IMAGE
+            }
+        }
+        for (extension in videoFileExtensions) {
+            if (filename.toLowerCase().endsWith(extension)) {
+                return VIDEO
+            }
+        }
+        if(filename.toLowerCase().endsWith("gif")){
+            return GIF
+        }
+
+        return -1
+    }
+
+}

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 
 <menu
+    android:id="@+id/menus"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:android="http://schemas.android.com/apk/res/android">
 
@@ -9,6 +10,15 @@
         app:showAsAction="always"
         app:actionViewClass="android.widget.HorizontalScrollView"
         android:title="Tags Searched">
+
+    </item>
+
+
+    <item
+        android:id="@+id/me"
+        app:showAsAction="always"
+        app:actionViewClass="com.diegodobelo.expandingview.ExpandingList"
+        android:title="">
 
     </item>
 

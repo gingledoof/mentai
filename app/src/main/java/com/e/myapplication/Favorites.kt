@@ -188,19 +188,11 @@ class Favorites : AppCompatActivity(){
 
     }
 
-    fun rewrite(){
-        fav.delete()
-        fav.createNewFile()
-        for (id in ids){
-            fav.appendText(id + "\n")
-        }
-        Log.e("REWRITE","Rewritten")
-    }
-
     override fun onBackPressed() {
         var i = Intent()
         //var i = Intent(this@Favorites, MainActivity::class.java)
-        i.putExtra("ids", arrayOf(ids))
+        i.putExtra("ids", ids.toTypedArray())
+        //i.putExtra("ids", arrayOf(ids))
         setResult(Activity.RESULT_OK, i)
         Log.e("BackPressed", Activity.RESULT_OK.toString())
         super.onBackPressed()
